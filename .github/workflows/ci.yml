@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Check imports
+        run: |
+          python -c "from src.config import EMBEDDING_MODEL, RERANK_MODEL, GROQ_MODEL; print('Config OK')"
+          python -c "from src.retriever import retrieve, rerank; print('Retriever OK')"
+          python -c "from src.generator import generate, generate_streaming; print('Generator OK')"
+          python -c "from src.ingest import extract_title, remove_citations, chunk_documents; print('Ingest OK')"
+
+      - name: Check app syntax
+        run: |
+          python -m py_compile app.py
+          echo "App syntax OK"
