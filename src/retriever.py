@@ -50,44 +50,103 @@ def load_retriever(progress_callback=None):
         progress_callback(0.9, "Connecting to ChromaDB...")
     client    = chromadb.PersistentClient(path=str(CHROMA_DIR))
     collection = client.get_collection(COLLECTION_NAME)
+    
+    if progress_callback:
+        progress_callback(0.95, "Loading BM25 index...")
+        
+    bm25_data = None
+    bm25_path = Path(CHROMA_DIR) / "bm25_index.pkl"
+    if bm25_path.exists():
+        import pickle
+        with open(bm25_path, "rb") as f:
+            bm25_data = pickle.load(f)
 
     if progress_callback:
         progress_callback(1.0, "Ready!")
 
-    return embedder, reranker, collection
+    return embedder, reranker, collection, bm25_data
 
 
 # ── retrieval ────────────────────────────────────────────────
-def retrieve(question, embedder, collection, n=RETRIEVE_N):
+def retrieve(question, embedder, collection, bm25_data=None, n=RETRIEVE_N):
     """
     Embed the question and find the top N most similar
-    chunks in ChromaDB using cosine similarity.
-
-    Returns a list of dicts:
-        text, title, filename, chunk_idx, similarity
+    chunks in ChromaDB using cosine similarity, combined with
+    BM25 sparse retrieval using Reciprocal Rank Fusion (RRF).
     """
     question_embedding = embedder.encode(question).tolist()
 
-    results = collection.query(
+    chroma_results = collection.query(
         query_embeddings = [question_embedding],
         n_results        = n,
         include          = ["documents", "metadatas", "distances"]
     )
 
-    return [
+    chroma_chunks = [
         {
+            "id":         id_,
             "text":       doc,
             "title":      meta["title"],
             "filename":   meta["filename"],
             "chunk_idx":  meta["chunk_idx"],
             "similarity": round(1 - dist, 3),
         }
-        for doc, meta, dist in zip(
-            results["documents"][0],
-            results["metadatas"][0],
-            results["distances"][0],
+        for id_, doc, meta, dist in zip(
+            chroma_results["ids"][0],
+            chroma_results["documents"][0],
+            chroma_results["metadatas"][0],
+            chroma_results["distances"][0],
         )
     ]
+
+    if bm25_data is None:
+        return chroma_chunks
+        
+    bm25 = bm25_data["bm25"]
+    bm25_scores = bm25.get_scores(question.lower().split())
+    
+    # get top N bm25 results
+    # Use python's built-in sort and take top N indices
+    top_n_idx = sorted(range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True)[:n]
+    
+    bm25_chunks = []
+    for idx in top_n_idx:
+        if bm25_scores[idx] <= 0:
+            continue
+        bm25_chunks.append({
+            "id":         bm25_data["ids"][idx],
+            "text":       bm25_data["documents"][idx],
+            "title":      bm25_data["metadatas"][idx]["title"],
+            "filename":   bm25_data["metadatas"][idx]["filename"],
+            "chunk_idx":  bm25_data["metadatas"][idx]["chunk_idx"],
+            "bm25_score": round(bm25_scores[idx], 3)
+        })
+        
+    # RRF (Reciprocal Rank Fusion)
+    k = 60
+    rrf_scores = {}
+    
+    chunk_map = {}
+    for rank, chunk in enumerate(chroma_chunks):
+        cid = chunk["id"]
+        chunk_map[cid] = chunk
+        rrf_scores[cid] = rrf_scores.get(cid, 0) + 1.0 / (k + rank + 1)
+        
+    for rank, chunk in enumerate(bm25_chunks):
+        cid = chunk["id"]
+        if cid not in chunk_map:
+            # We don't have the cosine similarity for this chunk if it wasn't in chroma top n
+            chunk["similarity"] = "BM25 only"
+            chunk_map[cid] = chunk
+        rrf_scores[cid] = rrf_scores.get(cid, 0) + 1.0 / (k + rank + 1)
+        
+    # Sort by RRF score
+    sorted_ids = sorted(rrf_scores.keys(), key=lambda cid: rrf_scores[cid], reverse=True)
+    
+    # Take top N from combined list
+    final_chunks = [chunk_map[cid] for cid in sorted_ids[:n]]
+    
+    return final_chunks
 
 
 # ── reranking ────────────────────────────────────────────────

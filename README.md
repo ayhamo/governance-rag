@@ -7,24 +7,24 @@
 
 ## The Problem
 
-Enterprise AI teams are facing an unprecedented regulatory cliff. Non-compliance with frameworks like the **EU AI Act** carries catastrophic fines (up to €35M or 7% of global revenue), while the **NIST AI Risk Management Framework** is becoming the de-facto standard for enterprise procurement. 
+Enterprise AI teams are facing an big regulatory issue. Non-compliance with frameworks like the **EU AI Act** carries huge fines (up to €35M or 7% of global revenue), while the **NIST AI Risk Management Framework** is becoming the standard for enterprise procurement. 
 
 However, there is a massive translation gap in the industry:
 * **Legal and Compliance teams** read 200-page regulations but do not know how to write code to perform bias checks or feature attribution.
 * **Machine Learning Engineers** know how to code, but do not know which specific mathematical fairness metric (e.g., Equalized Odds vs. Disparate Impact) legally satisfies "Article 10" or what exact logs are required to prove compliance during an audit.
 
-Existing "AI Compliance" chatbots only quote the law (e.g., *"You must mitigate bias"*), leaving engineers to guess how to implement it.
+Existing "AI Compliance" chatbots only quote the law ie "You must mitigate bias", leaving engineers to guess how to implement it.
 
 ---
 
 ## The Solution
 
-**GovernanceRAG** is a specialized Retrieval-Augmented Generation (RAG) system built to serve as a translation layer. It queries across two distinct knowledge bases simultaneously to map legal requirements directly to technical implementations.
+**GovernanceRAG** is a specialized Retrieval-Augmented Generation (RAG) system built to serve as a translation layer. It queries across two knowledge bases simultaneously to map legal requirements directly to technical implementations.
 
-*Note: The current corpus focuses heavily on the EU AI Act and ML Fairness. We plan to expand this to include more global laws and policies (e.g., CPPA, GDPR, US State AI laws).*
+*Note: The current corpus focuses heavily on the EU AI Act and ML Fairness. I plan to expand this to include more global laws and policies (e.g., CPPA, GDPR, US State AI laws).*
 
 **How it works:**
-You describe your AI system (e.g., *"We are deploying an LLM for CV screening"*). The system:
+You describe your AI system (*"We are deploying an LLM for CV screening"*). The system:
 1. Classifies the legal risk tier (e.g., *High-Risk under Annex III*).
 2. Identifies mandatory legal checks.
 3. **Retrieves and recommends the specific technical algorithms** from academic papers required to pass an audit.
@@ -39,7 +39,7 @@ User: "We are deploying an LLM for CV screening. What are our requirements?"
                                       │
                          ┌────────────┴────────────┐
                          │      Hybrid Search      │
-                         │   (BM25 + ChromaDB)     │ <-- (TBA)
+                         │   (BM25 + ChromaDB)     │
                          └────────────┬────────────┘
                                       │
                          ┌────────────┴────────────┐
@@ -64,7 +64,7 @@ Answer:
 
 **Key Innovations:**
 * **Two-Stage Retrieval:** Fast approximate search narrows chunks; a cross-encoder scores each (query, chunk) pair for true relevance.
-* **Hybrid Search (BM25 + Semantic):** Dense vectors capture semantic intent, while sparse BM25 guarantees we don't miss exact regulatory acronyms. *(TBA)*
+* **Hybrid Search (BM25 + Semantic):** Dense vectors capture semantic intent, while sparse BM25 guarantees we don't miss exact regulatory acronyms.
 * **Auditable Citations:** LLM outputs are post-verified to ensure claims strictly match the retrieved chunk, preventing legal hallucination. *(TBA)*
 * **Automated Evaluation:** Scored via Ragas/DeepEval for Faithfulness and Context Precision. *(TBA)*
 
@@ -72,25 +72,27 @@ Answer:
 
 ## Stack (Still being updated)
 
-| Component | Tool | Status |
-|---|---|---|
-| PDF extraction | pymupdf4llm | Active |
-| Chunking | LangChain RecursiveCharacterTextSplitter | Active |
-| Embeddings | `all-MiniLM-L6-v2` | Active |
-| Vector store | ChromaDB (persistent) | Active |
-| Sparse Index | BM25 | *TBA* |
-| Reranking | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Active |
-| LLM | Qwen (via Groq) | Active |
-| UI | Streamlit | Active |
-| Evaluation | Ragas / DeepEval | *TBA* |
+
+| Component | Tool |
+|---|---|
+| PDF extraction | pymupdf4llm |
+| Chunking | LangChain RecursiveCharacterTextSplitter |
+| Embeddings | `all-MiniLM-L6-v2` |
+| Vector store | ChromaDB (persistent) |
+| Sparse Index | BM25 |
+| Reranking | `cross-encoder/ms-marco-MiniLM-L-6-v2` |
+| LLM | openai/gpt-oss-20b (via Groq) |
+| UI | Streamlit |
+| Evaluation (TBA) | Ragas / DeepEval |
+
 
 ---
 
 ## Corpus
 
-The vector database is built on a highly curated collection of **20 technical and regulatory research papers** sourced directly from arXiv. These papers specifically bridge the gap between EU AI Act regulations and Machine Learning bias mitigation algorithms (e.g., *Operationalizing the EU AI Act in Agile Software Development*, *Equality of Opportunity in Supervised Learning*).
+The vector database is built on a highly curated collection of **20 technical and regulatory research papers** sourced from arXiv. These papers specifically connect the gap between EU AI Act regulations and Machine Learning bias mitigation algorithms (ie *Operationalizing the EU AI Act in Agile Software Development*, *Equality of Opportunity in Supervised Learning*).
 
-Note: There is a plan to add more.
+Note: There is a plan to add more as mentioend above.
 
 > **Automated Ingestion:** The repository includes an automated downloader script (`scripts/download_papers.py`) that uses the arXiv API to fetch the exact PDFs needed to build the database locally.
 
@@ -102,9 +104,6 @@ Note: There is a plan to add more.
 
 **Q: How do we mitigate bias to comply with Article 10 of the EU AI Act?**
 
-```
-Retrieving legal & technical sources...
-```
 
 > **Legal Obligation (Article 10)**
 > Under the EU AI Act, providers of high-risk AI systems must ensure that training, validation, and testing datasets are relevant, representative, and free of errors to prevent discriminatory impacts [Source 3]. The regulation specifically mandates that datasets must be examined for "possible biases" and that appropriate mitigation measures must be implemented [Source 1].
@@ -125,7 +124,7 @@ Retrieving legal & technical sources...
 
 ## Key Design Decisions
 
-*(TBA - Architectural decisions regarding Hybrid Search and Verifiable Citations will be documented here as they are implemented).*
+(TBA - Architectural decisions regarding Hybrid Search and Verifiable Citations will be documented here as they are implemented).
 
 ---
 
@@ -139,12 +138,29 @@ Retrieving legal & technical sources...
 ## Roadmap (still being worked on)
 
 - [x] Core RAG Pipeline (ChromaDB, Cross-Encoder, Streamlit UI)
-- [ ] Hybrid Search Implementation (BM25 Sparse + Dense Vectors)
+- [x] Hybrid Search Implementation (BM25 Sparse + Dense Vectors)
 - [ ] Auditable / Verifiable Citations (Anti-hallucination guardrails)
 - [ ] Automated RAG Evaluation Suite (Ragas / DeepEval)
 - [ ] Docker containerization
 - [ ] Deploy on Hugging Face Spaces
-- [ ] GitHub Actions CI/CD
+- [x] GitHub Actions CI/CD
+
+---
+
+## Testing
+
+Currently, the project includes automated tests to verify the core retrieval logic. 
+
+**What we are testing:**
+* **Hybrid Search (Retriever):** test that the dual-path retrieval correctly merges results from the semantic vector store (ChromaDB) and the keyword index (BM25). The tests ensure that if a document lacks dense similarity but possesses an exact keyword match, it is correctly retrieved and fused.
+
+**How to run tests:**
+in venv, run:
+```bash
+python -m pytest tests/
+```
+
+Note: This section will be expanded as we implement the automated RAG Evaluation Suite (Ragas / DeepEval) later.
 
 ---
 
@@ -153,7 +169,7 @@ Retrieving legal & technical sources...
 **1. Clone and install dependencies:**
 ```bash
 git clone https://github.com/ayhamo/governance-rag.git
-cd responsible-ai-rag
+cd governance-rag
 python -m venv venv
 venv\Scripts\activate      # On Windows
 source venv/bin/activate   # On Mac/Linux
@@ -165,7 +181,7 @@ Create a `.env` file in the root directory and add your Groq API key:
 ```env
 GROQ_API_KEY=your_key_here
 ```
-*(Get a free key at [console.groq.com](https://console.groq.com))*
+(Get a free key at [console.groq.com](https://console.groq.com))
 
 **3. Download the Corpus:**
 Run the automated script to fetch the 20 curated regulatory/ML papers from arXiv:

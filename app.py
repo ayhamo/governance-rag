@@ -100,8 +100,8 @@ def get_retriever_cached():
 @st.cache_resource(show_spinner=False)
 def load_ml_models():
     # Only called once, returns the actual models
-    embedder, reranker, collection = load_retriever()
-    return embedder, reranker, collection
+    embedder, reranker, collection, bm25_data = load_retriever()
+    return embedder, reranker, collection, bm25_data
 
 # Check if we need ingestion (fast)
 needs_ingestion = get_retriever_cached()
@@ -132,7 +132,7 @@ if "models_loaded" not in st.session_state:
             st.write("&nbsp;&nbsp;&nbsp;&nbsp;⏳ Loading Embedding Model...")
             st.write("&nbsp;&nbsp;&nbsp;&nbsp;⏳ Loading Cross-Encoder Reranker...")
             st.write("&nbsp;&nbsp;&nbsp;&nbsp;⏳ Connecting to ChromaDB...")
-            embedder, reranker, collection = load_ml_models()
+            embedder, reranker, collection, bm25_data = load_ml_models()
             ml_status.update(label="ML Engine Ready!", state="complete", expanded=False)
             
     # Clear the UI completely once everything is loaded
@@ -140,7 +140,7 @@ if "models_loaded" not in st.session_state:
     st.session_state.models_loaded = True
 else:
     # Models are already in cache, just retrieve them instantly without UI
-    embedder, reranker, collection = load_ml_models()
+    embedder, reranker, collection, bm25_data = load_ml_models()
 
 
 # ── 4. HEADER ────────────────────────────────────────────────
@@ -170,7 +170,7 @@ st.markdown(f"""
 st.markdown('<p class="examples-header">Example questions</p>', unsafe_allow_html=True)
 
 examples = [
-    "We are deploying an LLM for CV screening. What are our requirements?",
+    "What are the mandatory requirements for high-risk AI systems?",
     "How do we mitigate bias to comply with Article 10 of the EU AI Act?",
     "What explainability metrics should we use for high-risk systems?",
 ]
@@ -205,7 +205,7 @@ if search and question.strip():
     st.session_state.selected_example = ""
 
     with st.spinner("Retrieving legal & technical sources..."):
-        retrieved = retrieve(question, embedder, collection)
+        retrieved = retrieve(question, embedder, collection, bm25_data=bm25_data)
         reranked = rerank(question, retrieved, reranker)
 
     if not reranked or reranked[0]["rerank_score"] < 0.5:

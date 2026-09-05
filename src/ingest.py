@@ -11,7 +11,7 @@ Usage:
     python src/ingest.py
 """
 
-import re, os
+import re, os, pickle
 from pathlib import Path
 
 import fitz
@@ -21,10 +21,11 @@ from sentence_transformers import SentenceTransformer
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import torch
 from tqdm import tqdm
+from rank_bm25 import BM25Okapi
 
 from src.config import (
     PAPERS_DIR, CHROMA_DIR, EMBEDDING_MODEL, COLLECTION_NAME,
-    CHUNK_SIZE, CHUNK_OVERLAP, BATCH_SIZE
+    CHUNK_SIZE, CHUNK_OVERLAP, BATCH_SIZE, BM25_INDEX_PATH
 )
 
 
@@ -243,6 +244,37 @@ def embed_and_store(all_chunks):
     return collection
 
 
+# ── bm25 ─────────────────────────────────────────────────────
+def build_bm25_index():
+    print("\nBuilding BM25 index...")
+    client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+    collection = client.get_collection(COLLECTION_NAME)
+    data = collection.get(include=["documents", "metadatas"])
+    
+    ids = data["ids"]
+    documents = data["documents"]
+    metadatas = data["metadatas"]
+    
+    if not documents:
+        print("No documents found in ChromaDB to build BM25 index.")
+        return
+        
+    tokenized_corpus = [doc.lower().split() for doc in documents]
+    bm25 = BM25Okapi(tokenized_corpus)
+    
+    index_data = {
+        "bm25": bm25,
+        "ids": ids,
+        "documents": documents,
+        "metadatas": metadatas
+    }
+    
+    with open(BM25_INDEX_PATH, "wb") as f:
+        pickle.dump(index_data, f)
+        
+    print(f"BM25 index saved to {BM25_INDEX_PATH}")
+
+
 # ── main ─────────────────────────────────────────────────────
 def run_ingestion():
     print("=" * 60)
@@ -268,6 +300,7 @@ def run_ingestion():
     documents  = extract_documents(PAPERS_DIR)
     all_chunks = chunk_documents(documents)
     embed_and_store(all_chunks)
+    build_bm25_index()
 
     print("\n✓ Ingestion complete.")
 

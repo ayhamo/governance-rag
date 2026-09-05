@@ -8,6 +8,7 @@ load_dotenv()
 BASE_DIR   = Path(__file__).resolve().parent.parent
 PAPERS_DIR = BASE_DIR / "papers"
 CHROMA_DIR = BASE_DIR / "chroma_db"
+BM25_INDEX_PATH = CHROMA_DIR / "bm25_index.pkl"
 
 # ── models ───────────────────────────────────────────────────
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
