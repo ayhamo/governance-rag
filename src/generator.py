@@ -33,7 +33,8 @@ ANSWER QUALITY:
 - If asked about "how", provide concrete ML steps or mathematical metrics mentioned in the text (e.g., Equalized Odds, SHAP).
 
 CITATION RULES:
-- Always cite using [Source N] notation inline.
+- Always cite using standard ASCII square brackets [Source N] inline (e.g., [Source 1], [Source 2]).
+- Do NOT use special Unicode or Chinese brackets like 【 】 — strictly use standard [ and ].
 - Citation format is strictly [Source N] — never [Source N: anything].
 - Every single claim MUST end with a citation to the specific source chunk it came from.
 - [Source N] is the complete citation format — nothing else goes inside the brackets.
@@ -70,7 +71,8 @@ def generate(question, chunks):
         temperature = 0.1,
         max_tokens  = 1024,
     )
-    return response.choices[0].message.content
+    content = response.choices[0].message.content or ""
+    return content.replace("【", "[").replace("】", "]")
 
 
 # ── streaming generation ─────────────────────────────────────
@@ -95,4 +97,4 @@ def generate_streaming(question, chunks):
     for chunk in stream:
         token = chunk.choices[0].delta.content
         if token:
-            yield token
+            yield token.replace("【", "[").replace("】", "]")

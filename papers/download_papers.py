@@ -24,7 +24,7 @@ PAPERS = [
     "Complying with the EU AI Act: Innovations in Explainable and User-Centric Hand Gesture Recognition",
     "Sustainable AI Regulation",
     "Governing What the EU AI Act Excludes: Accountability for Autonomous AI Agents in Smart City Critical Infrastructure",
-    "Equality of Opportunity in Supervised Learning" # The famous Equalized Odds paper!
+    "Equality of Opportunity in Supervised Learning" # The famous Equalized Odds paper
 ]
 
 def main():

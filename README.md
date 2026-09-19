@@ -82,7 +82,7 @@ Answer:
 | Sparse Index | BM25 |
 | Reranking | `cross-encoder/ms-marco-MiniLM-L-6-v2` |
 | LLM | openai/gpt-oss-20b (via Groq) |
-| UI | Streamlit |
+| UI | Gradio |
 | Evaluation (TBA) | Ragas / DeepEval |
 
 
@@ -94,7 +94,7 @@ The vector database is built on a highly curated collection of **20 technical an
 
 Note: There is a plan to add more as mentioend above.
 
-> **Automated Ingestion:** The repository includes an automated downloader script (`scripts/download_papers.py`) that uses the arXiv API to fetch the exact PDFs needed to build the database locally.
+> **Automated Ingestion:** The repository includes an automated downloader script (`papers/download_papers.py`) that uses the arXiv API to fetch the exact PDFs needed to build the database locally.
 
 ---
 
@@ -137,10 +137,12 @@ Note: There is a plan to add more as mentioend above.
 
 ## Roadmap (still being worked on)
 
-- [x] Core RAG Pipeline (ChromaDB, Cross-Encoder, Streamlit UI)
+- [x] Core RAG Pipeline (ChromaDB, Cross-Encoder, Gradio UI)
 - [x] Hybrid Search Implementation (BM25 Sparse + Dense Vectors)
+- [x] Switch UI from Streamlit to Gradio for easy public sharing (--share option for Kaggle/Colab)
 - [ ] Auditable / Verifiable Citations (Anti-hallucination guardrails)
 - [ ] Automated RAG Evaluation Suite (Ragas / DeepEval)
+- [ ] Kaggle/Colab notebook for easy run
 - [ ] Docker containerization
 - [ ] Deploy on Hugging Face Spaces
 - [x] GitHub Actions CI/CD
@@ -190,7 +192,8 @@ python scripts/download_papers.py
 ```
 
 **4. Run the Application:**
-Launch the Streamlit UI. On the first run, the system will automatically parse the PDFs, chunk the text, and build the ChromaDB vector store.
+Launch the Gradio UI. On the first run, the system will automatically parse the PDFs, chunk the text, and build the ChromaDB vector store.
 ```bash
-streamlit run app.py
+python app.py
 ```
+*(Note: To generate a live public link for sharing or running on Kaggle/Colab, change `demo.launch(share=False)` to `share=True` in `app.py`)*
