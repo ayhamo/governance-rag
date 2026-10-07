@@ -27,6 +27,8 @@ from src.config import (
     PAPERS_DIR, CHROMA_DIR, EMBEDDING_MODEL, COLLECTION_NAME,
     CHUNK_SIZE, CHUNK_OVERLAP, BATCH_SIZE, BM25_INDEX_PATH
 )
+from src.retriever import classify_domain
+
 
 
 # ── title extraction ─────────────────────────────────────────
@@ -237,6 +239,7 @@ def embed_and_store(all_chunks):
                 "title":     c["title"],
                 "filename":  c["filename"],
                 "chunk_idx": c["chunk_idx"],
+                "domain":    classify_domain(c["filename"], c["title"]),
             } for c in batch]
         )
 

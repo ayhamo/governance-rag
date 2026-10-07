@@ -12,11 +12,14 @@ from src.config import GROQ_API_KEY, GROQ_MODEL
 
 
 # ── context builder ──────────────────────────────────────────
+# ── context builder ──────────────────────────────────────────
 def build_context(chunks):
     """Format reranked chunks into a numbered context string."""
     parts = []
     for i, chunk in enumerate(chunks, 1):
-        parts.append(f"[Source {i}: {chunk['title']}]\n{chunk['text']}")
+        domain = chunk.get("domain", "")
+        domain_suffix = f" [Domain: {domain.capitalize()}]" if domain else ""
+        parts.append(f"[Source {i}: {chunk['title']}{domain_suffix}]\n{chunk['text']}")
     return "\n\n---\n\n".join(parts)
 
 
@@ -75,6 +78,25 @@ def generate(question, chunks):
     return content.replace("【", "[").replace("】", "]")
 
 
+def generate_with_audit(question, chunks, verifier=None):
+    """
+    Generate an answer and audit its citations using CitationVerifier.
+    Returns (answer, audit_dict).
+    """
+    answer = generate(question, chunks)
+    if verifier is None:
+        try:
+            from src.verifier import CitationVerifier
+            from src.config import ENABLE_CITATION_VERIFICATION
+            if ENABLE_CITATION_VERIFICATION:
+                verifier = CitationVerifier()
+        except Exception:
+            verifier = None
+
+    audit = verifier.verify_answer(answer, chunks) if verifier else None
+    return answer, audit
+
+
 # ── streaming generation ─────────────────────────────────────
 def generate_streaming(question, chunks):
     """
@@ -98,3 +120,4 @@ def generate_streaming(question, chunks):
         token = chunk.choices[0].delta.content
         if token:
             yield token.replace("【", "[").replace("】", "]")
+

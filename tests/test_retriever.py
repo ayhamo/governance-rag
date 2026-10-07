@@ -60,3 +60,47 @@ def test_retrieve_with_bm25():
     assert "id1" in result_ids
     assert "id4" in result_ids
 
+def test_classify_domain():
+    from src.retriever import classify_domain
+    assert classify_domain("Equality_of_Opportunity_in_Supervised_Learning_1610.02413v1.pdf") == "technical"
+    assert classify_domain("Complying_with_the_EU_AI_Act_2307.10458v1.pdf") == "legal"
+    assert classify_domain("unknown.pdf", "Algorithm for Bias Mitigation in Deep Neural Networks") == "technical"
+    assert classify_domain("unknown.pdf", "Governance and Compliance under EU AI Regulation") == "legal"
+
+def test_rerank_dual_domain_balancing():
+    from src.retriever import rerank
+
+    class DummyReranker:
+        def predict(self, pairs):
+            # Assign fixed scores based on chunk id in text
+            scores = []
+            for query, text in pairs:
+                if "legal_1" in text:
+                    scores.append(5.0)
+                elif "legal_2" in text:
+                    scores.append(4.0)
+                elif "legal_3" in text:
+                    scores.append(3.0)
+                elif "tech_1" in text:
+                    scores.append(2.0)
+                else:
+                    scores.append(0.0)
+            return scores
+
+    chunks = [
+        {"id": "l1", "filename": "f1.pdf", "title": "Legal 1", "text": "legal_1 text", "domain": "legal"},
+        {"id": "l2", "filename": "f2.pdf", "title": "Legal 2", "text": "legal_2 text", "domain": "legal"},
+        {"id": "l3", "filename": "f3.pdf", "title": "Legal 3", "text": "legal_3 text", "domain": "legal"},
+        {"id": "t1", "filename": "f4.pdf", "title": "Tech 1", "text": "tech_1 text", "domain": "technical"},
+    ]
+
+    reranker = DummyReranker()
+    # With top_k=2 and dual domain enforced, even though legal_1 (5.0) and legal_2 (4.0) have highest scores,
+    # the second slot should be filled by tech_1 (2.0) to ensure both domains are represented.
+    diverse = rerank("query", chunks, reranker, top_k=2, enforce_dual_domain=True)
+    assert len(diverse) == 2
+    domains = [c["domain"] for c in diverse]
+    assert "legal" in domains
+    assert "technical" in domains
+
+

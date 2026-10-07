@@ -13,6 +13,7 @@ BM25_INDEX_PATH = CHROMA_DIR / "bm25_index.pkl"
 # ── models ───────────────────────────────────────────────────
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 RERANK_MODEL    = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+NLI_MODEL       = "cross-encoder/nli-deberta-v3-small"
 GROQ_MODEL      = "openai/gpt-oss-20b"
 
 # ── chromadb ─────────────────────────────────────────────────
@@ -26,9 +27,15 @@ CHUNK_OVERLAP = 200
 BATCH_SIZE = 64
 
 # ── retrieval ────────────────────────────────────────────────
-RETRIEVE_N    = 20
-TOP_K         = 5
-MAX_PER_PAPER = 2
+RETRIEVE_N          = 20
+TOP_K               = 5
+MAX_PER_PAPER       = 2
+ENFORCE_DUAL_DOMAIN = True
+
+# ── citation verification ────────────────────────────────────
+ENABLE_CITATION_VERIFICATION = True
+NLI_CONFIDENCE_THRESHOLD     = 0.50
 
 # ── api keys ─────────────────────────────────────────────────
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+

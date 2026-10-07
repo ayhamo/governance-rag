@@ -13,8 +13,55 @@ import torch
 
 from src.config import (
     CHROMA_DIR, COLLECTION_NAME, EMBEDDING_MODEL,
-    RERANK_MODEL, RETRIEVE_N, TOP_K, MAX_PER_PAPER
+    RERANK_MODEL, RETRIEVE_N, TOP_K, MAX_PER_PAPER,
+    ENFORCE_DUAL_DOMAIN
 )
+
+LEGAL_PAPERS = {
+    "ADAPT_Centre_Contribution_on_Implementation_of_the_2503.05758v1.pdf",
+    "AI_Governance_in_the_Context_of_the_EU_AI_Act__A_B_2502.03468v1.pdf",
+    "Complying_with_the_EU_AI_Act_2307.10458v1.pdf",
+    "Governing_What_the_EU_AI_Act_Excludes__Accountabil_2605.01091v1.pdf",
+    "Mapping_the_Regulatory_Learning_Space_for_the_EU_A_2503.05787v2.pdf",
+    "Navigating_the_EU_AI_Act__A_Methodological_Approac_2403.16808v2.pdf",
+    "Qualifying_and_Quantifying_Risk_Under_the_EU_AI_Ac_2608.08564v2.pdf",
+    "Red_Teaming_AI_Policy__A_Taxonomy_of_Avoision_and__2506.01931v1.pdf",
+    "Sustainable_AI_Regulation_2306.00292v4.pdf",
+    "The_EU_AI_Act_and_the_Rights_based_Approach_to_Tec_2603.22920v1.pdf",
+}
+
+TECHNICAL_PAPERS = {
+    "An_Analysis_of_the_New_EU_AI_Act_and_A_Proposed_St_2510.01281v1.pdf",
+    "Are_Bias_Mitigation_Techniques_for_Deep_Learning_E_2104.00170v4.pdf",
+    "Assessing_Model_Agnostic_XAI_Methods_against_EU_AI_2604.09628v2.pdf",
+    "Complying_with_the_EU_AI_Act__Innovations_in_Expla_2503.15528v1.pdf",
+    "Equality_of_Opportunity_in_Supervised_Learning_1610.02413v1.pdf",
+    "From_Bias_to_Accountability__How_the_EU_AI_Act_Con_2505.18236v1.pdf",
+    "From_Obligation_to_Specification__A_Survey_on_Vali_2607.21608v1.pdf",
+    "Operationalizing_the_EU_AI_Act_in_Agile_Software_D_2608.16526v1.pdf",
+    "The_Case_for_ESM3_as_a_General_Purpose_AI_Model_wi_2605.01611v1.pdf",
+    "The_EU_AI_Act_in_Development_Practice__A_Pro_justi_2504.20075v1.pdf",
+}
+
+def classify_domain(filename: str, title: str = "") -> str:
+    """Classify paper into 'legal' or 'technical' domain."""
+    if filename in LEGAL_PAPERS:
+        return "legal"
+    if filename in TECHNICAL_PAPERS:
+        return "technical"
+
+    text = f"{filename} {title}".lower()
+    tech_keywords = [
+        "bias", "fairness", "equal", "xai", "shap", "lime", "algorithm",
+        "learning", "agile", "specification", "model", "deep learning"
+    ]
+    legal_keywords = [
+        "governance", "act", "law", "regulation", "legal", "risk",
+        "policy", "rights", "compliance", "obligation"
+    ]
+    tech_score = sum(1 for kw in tech_keywords if kw in text)
+    legal_score = sum(1 for kw in legal_keywords if kw in text)
+    return "technical" if tech_score > legal_score else "legal"
 
 
 # ── load models once at module level ─────────────────────────
@@ -24,7 +71,7 @@ from src.config import (
 def load_retriever(progress_callback=None):
     """
     Load embedding model, reranker, and ChromaDB collection.
-    Returns (embedder, reranker, collection).
+    Returns (embedder, reranker, collection, bm25_data).
     """
     chroma_path = Path(CHROMA_DIR)
     if not chroma_path.exists():
@@ -86,9 +133,10 @@ def retrieve(question, embedder, collection, bm25_data=None, n=RETRIEVE_N):
         {
             "id":         id_,
             "text":       doc,
-            "title":      meta["title"],
-            "filename":   meta["filename"],
-            "chunk_idx":  meta["chunk_idx"],
+            "title":      meta.get("title", ""),
+            "filename":   meta.get("filename", ""),
+            "chunk_idx":  meta.get("chunk_idx", 0),
+            "domain":     meta.get("domain") or classify_domain(meta.get("filename", ""), meta.get("title", "")),
             "similarity": round(1 - dist, 3),
         }
         for id_, doc, meta, dist in zip(
@@ -106,19 +154,20 @@ def retrieve(question, embedder, collection, bm25_data=None, n=RETRIEVE_N):
     bm25_scores = bm25.get_scores(question.lower().split())
     
     # get top N bm25 results
-    # Use python's built-in sort and take top N indices
     top_n_idx = sorted(range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True)[:n]
     
     bm25_chunks = []
     for idx in top_n_idx:
         if bm25_scores[idx] <= 0:
             continue
+        meta = bm25_data["metadatas"][idx]
         bm25_chunks.append({
             "id":         bm25_data["ids"][idx],
             "text":       bm25_data["documents"][idx],
-            "title":      bm25_data["metadatas"][idx]["title"],
-            "filename":   bm25_data["metadatas"][idx]["filename"],
-            "chunk_idx":  bm25_data["metadatas"][idx]["chunk_idx"],
+            "title":      meta.get("title", ""),
+            "filename":   meta.get("filename", ""),
+            "chunk_idx":  meta.get("chunk_idx", 0),
+            "domain":     meta.get("domain") or classify_domain(meta.get("filename", ""), meta.get("title", "")),
             "bm25_score": round(bm25_scores[idx], 3)
         })
         
@@ -135,7 +184,6 @@ def retrieve(question, embedder, collection, bm25_data=None, n=RETRIEVE_N):
     for rank, chunk in enumerate(bm25_chunks):
         cid = chunk["id"]
         if cid not in chunk_map:
-            # We don't have the cosine similarity for this chunk if it wasn't in chroma top n
             chunk["similarity"] = "BM25 only"
             chunk_map[cid] = chunk
         rrf_scores[cid] = rrf_scores.get(cid, 0) + 1.0 / (k + rank + 1)
@@ -150,13 +198,23 @@ def retrieve(question, embedder, collection, bm25_data=None, n=RETRIEVE_N):
 
 
 # ── reranking ────────────────────────────────────────────────
-def rerank(question, chunks, reranker, top_k=TOP_K, max_per_paper=MAX_PER_PAPER):
+def rerank(
+    question,
+    chunks,
+    reranker,
+    top_k=TOP_K,
+    max_per_paper=MAX_PER_PAPER,
+    enforce_dual_domain=ENFORCE_DUAL_DOMAIN
+):
     """
     Rerank chunks using a cross-encoder model.
     Cross-encoder scores (question, chunk) pairs together —
     more accurate than embedding similarity alone.
 
-    Also enforces diversity: max max_per_paper chunks per paper.
+    Enforces diversity:
+    1. Maximum max_per_paper chunks per paper.
+    2. Dual-Domain balance: ensures representation of both 'legal' and 'technical'
+       perspectives when relevant chunks exist.
 
     Returns top_k most relevant diverse chunks.
     """
@@ -167,11 +225,14 @@ def rerank(question, chunks, reranker, top_k=TOP_K, max_per_paper=MAX_PER_PAPER)
 
     for chunk, score in zip(chunks, scores):
         chunk["rerank_score"] = round(float(score), 3)
+        if "domain" not in chunk or not chunk["domain"]:
+            chunk["domain"] = classify_domain(chunk.get("filename", ""), chunk.get("title", ""))
 
     paper_counts = {}
-    diverse      = []
+    candidates = sorted(chunks, key=lambda x: x["rerank_score"], reverse=True)
 
-    for chunk in sorted(chunks, key=lambda x: x["rerank_score"], reverse=True):
+    diverse = []
+    for chunk in candidates:
         if chunk["rerank_score"] < -1:  # skip irrelevant chunks
             continue
         paper = chunk["filename"]
@@ -180,5 +241,23 @@ def rerank(question, chunks, reranker, top_k=TOP_K, max_per_paper=MAX_PER_PAPER)
             paper_counts[paper] = paper_counts.get(paper, 0) + 1
         if len(diverse) == top_k:
             break
+
+    # Dual-Domain balancing: ensure representation of both 'legal' and 'technical'
+    if enforce_dual_domain and len(diverse) >= 2:
+        domains_present = {c.get("domain") for c in diverse}
+        if len(domains_present) == 1:
+            present_domain = next(iter(domains_present))
+            missing_domain = "technical" if present_domain == "legal" else "legal"
+
+            # Find the best scoring chunk from the missing domain
+            best_missing = None
+            for chunk in candidates:
+                if chunk.get("domain") == missing_domain and chunk["rerank_score"] >= -2.0:
+                    best_missing = chunk
+                    break
+
+            if best_missing is not None and best_missing not in diverse:
+                diverse[-1] = best_missing
+                diverse.sort(key=lambda x: x["rerank_score"], reverse=True)
 
     return diverse
