@@ -1,207 +1,165 @@
-# GovernanceRAG: Bridging AI Law and Engineering
-### A production-grade RAG pipeline mapping the EU AI Act & NIST frameworks directly to technical mitigation algorithms.
+# GovernanceRAG: EU AI Act → engineering
+
+### Retrieval over the regulation text and ML-fairness research, with every citation checked by an NLI guardrail before you see it.
 
 > **Live demo:** TBA
+> **Status:** v0.2 — the regulation itself is now in the index, article by article.
 
 ---
 
-## The Problem
+## What's new in v0.2
 
-Enterprise AI teams face a severe regulatory hurdle. Non-compliance with frameworks like the **EU AI Act** carries penalties of up to €35M or 7% of global annual revenue, while the **NIST AI Risk Management Framework** is becoming the de facto standard for enterprise procurement. 
+- **The law is in the corpus.** Regulation (EU) 2024/1689 is fetched from EUR-Lex and chunked into **784 legal units**: 180 recitals, 533 article paragraphs (across all 113 articles), 71 annex items. Each unit carries its article/paragraph/annex number, chapter, the date it applies from (per Article 113), and a deep link back to EUR-Lex.
+- **Citations name the law.** Sources render as `EU AI Act, Art. 10(2)` instead of a paper title, and link to the EUR-Lex anchor.
+- **Source manifest.** [`corpus/manifest.yaml`](corpus/manifest.yaml) lists every source with its licence, URL and version date. `governance-rag fetch` downloads what is missing; nothing about sources is hard-coded.
+- **Structural context headers.** Every law chunk is embedded with a header like *"EU AI Act, Article 10 (Data and data governance), paragraph 2"* so retrieval sees where it sits. Research chunks can get an LLM-generated header (`--llm-headers`, cached).
+- **Reference pinning.** If the question names a unit ("Article 10(2)(f)", "Annex III, point 4", "Recital 60"), that unit is looked up by metadata and guaranteed a slot in the context; the reranker cannot drop it. The BM25 tokenizer also splits `10(2)(f)` into tokens so sparse search sees them.
+- **Corpus as-of date** is stamped on every answer.
+- **Three domains, configurable quota.** Reranking guarantees at least one `law` and one `research` chunk in the top-K; the quota is a config dict, ready for a third domain.
+- **Tooling.** `pyproject.toml` + `uv`, `ruff`, a `governance-rag` CLI (`fetch` / `ingest` / `serve` / `api`), CI that actually runs the tests, a CPU Dockerfile.
+- **Fixed:** the API crashed on startup; first run skipped the BM25 index; ingestion crashed on an empty corpus folder; Dockerfile still launched Streamlit.
 
-However, there is a massive translation gap in the industry:
-* **Legal and Compliance teams** read 200-page regulations but do not know how to write code to perform bias checks, data governance audits, or feature attribution.
-* **Machine Learning Engineers** know how to code, but do not know which specific mathematical fairness metric (e.g., Equalized Odds vs. Disparate Impact) legally satisfies "Article 10" or what exact logs are required to prove compliance during an audit.
-
-Existing "AI Compliance" chatbots only quote the law (e.g., *"You must mitigate bias"*), leaving engineers to guess how to implement it.
-
----
-
-## The Solution
-
-**GovernanceRAG** is a specialized Retrieval-Augmented Generation (RAG) system built to serve as a translation layer. It queries across two knowledge bases simultaneously to map legal requirements directly to technical implementations.
-
-*Note: The current corpus focuses heavily on the EU AI Act and ML Fairness. I plan to expand this to include more global laws and policies (e.g., CPPA, GDPR, US State AI laws).*
-
-**How it works:**
-You describe your AI system (*"We are deploying an LLM for CV screening"*). The system:
-1. Classifies the legal risk tier (e.g., *High-Risk under Annex III*).
-2. Identifies mandatory legal checks (e.g., *Article 10 data governance*).
-3. **Retrieves and recommends the specific technical algorithms** from academic papers required to pass an audit.
-4. **Verifies citations using NLI guardrails**, ensuring that every claim in the response is mathematically and factually entailed by the source papers.
+Removed: the Colab notebook, the title-search paper downloader, `requirements.txt`, the hard-coded paper-to-domain lists.
 
 ---
 
-## Architecture
+## The problem
+
+The EU AI Act requires providers of high-risk AI systems to produce technical documentation (Article 11, Annex IV) and to meet engineering obligations on data governance, logging, transparency, human oversight, accuracy and robustness (Articles 9–15). Non-compliance carries penalties of up to €35M or 7% of global turnover.
+
+The people who have to do that work are ML engineers, and there is a translation gap:
+
+* **Legal and compliance teams** read the 200-page regulation but cannot say which fairness metric, which log, or which test satisfies a given article.
+* **ML engineers** can build the controls but do not know which article demands them or what Annex IV wants written down.
+
+Existing "AI compliance" chatbots quote the law back at you and leave the engineer to guess. Worse, their citations are often plausible rather than true: the model paraphrases, cites, and nobody checks.
+
+---
+
+## What it does
+
+Ask a question. GovernanceRAG retrieves from the **regulation text** and from **technical ML papers** at the same time, writes an answer that pairs each legal obligation with an engineering control, then runs every `[Source N]` through an NLI model against the exact chunk it cites. Claims the model cannot ground are flagged; you see the supporting sentence for the ones it can.
 
 ```
-User: "We are deploying an LLM for CV screening. What are our requirements?"
-                                      │
-                         ┌────────────┴────────────┐
-                         │      Hybrid Search      │
-                         │   (BM25 + ChromaDB)     │
-                         └────────────┬────────────┘
-                                      │
-                         ┌────────────┴────────────┐
-                         │                         │
-               [Official Law]             [Technical Papers]
-               EU AI Act Annex III         Debiasing & Fairness Literature
-               High-Risk Classification    Equalized Odds / Disparate Impact
-                         │                         │
-                         └────────────┬────────────┘
-                                      │
-                             Cross-Encoder Reranking
-                           (Dual-Domain Diversity)
-                                      │
-                            LLM (Qwen via Groq API)
-                                      │
-                         ┌────────────┴────────────┐
-                         │  NLI Citation Verifier  │
-                         │  (DeBERTa-v3 Guardrail) │
-                         └────────────┬────────────┘
-                                      │
-Answer with Auditable Citations:
-- Legal Classification: High-Risk (EU AI Act Article 6 / Annex III) [Source 1: Verified (95%)]
-- Mandatory Checks: Bias testing on demographic groups (Article 10) [Source 2: Verified (98%)]
-- Recommended Technical Algorithm: Equalized Odds Post-Processing [Source 3: Verified (92%)]
-- Explainability Requirements: SHAP/LIME feature attribution logs [Source 4: Verified (94%)]
+"What does Article 10(2)(f) require, and how do we test for it?"
+                        │
+          ┌─────────────┴─────────────┐
+          │   Hybrid retrieval        │  BM25 ∪ dense (MiniLM) → RRF
+          └─────────────┬─────────────┘
+                        │
+        [law]                       [research]
+  EU AI Act, Art. 10(2)       Bias-mitigation & XAI papers
+  Annex IV(2)(d) …            Equalized Odds, SHAP …
+                        │
+          Cross-encoder rerank · ≤2 chunks per source · domain quota
+                        │
+                 LLM (Groq) with [Source N] citations
+                        │
+          ┌─────────────┴─────────────┐
+          │  NLI citation verifier    │  DeBERTa-v3 → entailed / neutral / contradicted
+          └─────────────┬─────────────┘
+                        │
+  Answer + per-source verdict + supporting quote + EUR-Lex link + corpus as-of date
 ```
 
-**Key Innovations:**
-* **Two-Stage Dual-Domain Retrieval:** Fast hybrid retrieval (BM25 + ChromaDB fused via RRF) narrows down chunks; a cross-encoder scores each (query, chunk) pair while guaranteeing that both *Legal* and *Technical* domains are represented in the top-$K$ prompt context.
-* **Hybrid Search (BM25 + Semantic):** Dense vectors capture semantic intent, while sparse BM25 guarantees exact regulatory acronyms (e.g., *"ISO 42001"*, *"Article 10"*) are never missed.
-* **Auditable Citations (NLI Anti-Hallucination Guardrail):** Every `[Source N]` claim is post-audited by a Natural Language Inference (NLI) model (`cross-encoder/nli-deberta-v3-small`) to ensure statements strictly entail the evidence text, flagging ungrounded claims with visual confidence badges.
-* **Interactive UI Evidence Quotes:** Click-to-expand evidence quotes directly in the Gradio UI reveal the exact sentences from the literature that substantiate each statement.
-* **Automated Evaluation:** Scored via DeepEval / Ragas for Faithfulness and Context Precision. *(Phase 4)*
+## Corpus
+
+| Source | Domain | Units | Chunking |
+|---|---|---|---|
+| **Regulation (EU) 2024/1689** (EU AI Act), EUR-Lex OJ text of 12 July 2024 | `law` | 784 | One chunk per recital, article paragraph (with its points) and annex item. Over-long units (e.g. Art. 3 definitions) split at point boundaries. Metadata: `article`, `paragraph`, `annex`, `item`, `chapter`, `section`, `applies_from`, `source_url`. |
+| **20 arXiv papers** on EU AI Act compliance, bias mitigation and explainability | `research` | 1,974 | `pymupdf4llm` markdown → citation markers stripped → 1000-char chunks, 200 overlap. |
+| NIST AI RMF 1.0 | `law` | — | Downloaded, **not yet indexed** (chunker pending). |
+
+Everything is declared in [`corpus/manifest.yaml`](corpus/manifest.yaml). The Act's HTML is committed (EUR-Lex permits reuse); the PDFs are not (`governance-rag fetch` gets them).
 
 ---
 
 ## Stack
 
-| Component | Tool | Purpose |
-|---|---|---|
-| **PDF Extraction** | `pymupdf4llm` | Clean Markdown extraction preserving layout & structure |
-| **Chunking** | LangChain `RecursiveCharacterTextSplitter` | Overlapping semantic chunking (1000 chars, 200 overlap) |
-| **Dense Embeddings** | `all-MiniLM-L6-v2` | Fast, high-accuracy semantic vector representations |
-| **Vector Store** | ChromaDB (persistent) | Local persistent cosine similarity search |
-| **Sparse Index** | `rank_bm25` (Okapi BM25) | Exact keyword matching for legal articles & acronyms |
-| **Retrieval Fusion** | Reciprocal Rank Fusion (RRF) | Rank-based combination of sparse and dense candidates |
-| **Reranking** | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Pairwise query-document reranking with dual-domain balancing |
-| **LLM** | `openai/gpt-oss-20b` / `Qwen` (via Groq API) | Ultra-fast compliance structured generation |
-| **Citation Guardrail** | `cross-encoder/nli-deberta-v3-small` + Groq Judge | 3-way NLI classification (`Entailment`, `Neutral`, `Contradiction`) |
-| **UI** | Gradio | Responsive UI with real-time streaming & interactive audit badges |
-| **Evaluation (TBA)** | DeepEval / Ragas | Automated CI/CD quality gates & benchmark metrics |
-
----
-
-## Corpus
-
-The vector database is built on a curated collection of **20 technical and regulatory research papers** sourced from arXiv, balanced between official legal analyses of the EU AI Act and machine learning bias mitigation/explainability literature:
-
-| Domain | Representative Papers |
+| Component | Tool |
 |---|---|
-| **Legal & Governance (10 Papers)** | *Complying with the EU AI Act*, *Qualifying and Quantifying Risk Under the EU AI Act*, *AI Governance in the Context of the EU AI Act*, *Navigating the EU AI Act*, *Red Teaming AI Policy*, etc. |
-| **Technical & Engineering (10 Papers)** | *Equality of Opportunity in Supervised Learning* (Equalized Odds), *Are Bias Mitigation Techniques for Deep Learning Effective?*, *Assessing Model-Agnostic XAI Methods (SHAP/LIME)*, *Operationalizing the EU AI Act in Agile Software Development*, etc. |
-
-> **Automated Ingestion:** Use `python scripts/download_papers.py` to fetch all 20 curated PDFs from the arXiv API.
+| Legal text parsing | `beautifulsoup4` + `lxml` over the EUR-Lex ELI/CONVEX HTML |
+| PDF extraction | `pymupdf4llm` |
+| Embeddings | `all-MiniLM-L6-v2` |
+| Vector store | ChromaDB, persistent, cosine |
+| Sparse index | `rank_bm25` (Okapi) |
+| Fusion | Reciprocal Rank Fusion, k = 60 |
+| Reranker | `cross-encoder/ms-marco-MiniLM-L-6-v2` with per-source cap and domain quota |
+| LLM | `openai/gpt-oss-20b` via Groq |
+| Citation guardrail | `cross-encoder/nli-deberta-v3-small`, LLM second opinion on neutral verdicts |
+| UI / API | Gradio · FastAPI (`/ask` SSE, `/retrieve`, `/corpus`, `/health`) |
+| Tooling | `uv`, `ruff`, `pytest`, GitHub Actions |
 
 ---
 
-## Example Output & Citation Audit
+## Example
 
-> **Note:** The system structures outputs for enterprise engineering teams, clearly distinguishing the Legal Obligation from the Technical Mitigation, followed by an NLI Citation Audit badge.
+```
+🛡️ NLI Citation Audit: Fully Grounded (4/4 citations verified) | Grounding: 100%
 
-```markdown
-🛡️ NLI Citation Audit: Fully Grounded (3/3 citations verified via NLI) | Grounding: 100%
+**Legal obligation — Article 10(2)(f)**
+- Training, validation and testing data must be examined for biases likely to affect
+  health and safety or fundamental rights [Source 1].
+- Annex IV requires the technical documentation to describe the data sets used,
+  including provenance and labelling procedures [Source 2].
 
-Legal Obligation (Article 10 – EU AI Act)
-- Data Governance & Quality: High-risk AI systems must be developed using training, validation, and testing data sets that are relevant, sufficiently representative, free of errors, and complete for the intended purpose [Source 1].
-- Bias Examination: Article 10(2)(f) explicitly requires that data sets be examined for biases likely to affect health and safety or to have a negative impact on fundamental rights [Source 2].
+**Technical mitigation**
+- Measure group-conditional error rates; Equalized Odds post-processing balances
+  TPR/FPR across protected groups [Source 3].
+- …
 
-Technical Mitigation (Engineering Implementation)
-- Pre-processing: Apply statistical checks for missing values and disparate impact across protected attributes [Source 1].
-- In-processing / Post-processing: Incorporate Equalized Odds post-processing or adversarial debiasing to balance TPR/FPR across groups [Source 3].
-- Documentation: Maintain data provenance logs and SHAP explainability summaries for conformity assessment audits [Source 2].
+Sources · corpus as of 2026-10-14
+1  EU AI Act, Art. 10(2)   Data and data governance · applies from 2026-08-02   LAW   ✓ Verified (96%)
+2  EU AI Act, Annex IV(2)  Technical documentation …                             LAW   ✓ Verified (91%)
+3  Equality of Opportunity in Supervised Learning                           RESEARCH  ✓ Verified (88%)
 ```
 
-In the UI, each source card displays:
-* Domain Tag (`[LEGAL]` or `[TECHNICAL]`)
-* Rerank Score (`score 8.375`)
-* Verification Status (`✓ Verified (95%)` or `⚠️ Weak Grounding`)
-* Expandable accordion revealing the exact supporting quote from the research paper.
+Each source card links to EUR-Lex or arXiv and expands to show the sentence the verifier matched.
 
 ---
 
-## Key Design Decisions
+## Design decisions
 
-1. **Two-Tier NLI Citation Verification**:
-   * *Problem*: Cosine similarity is insufficient for legal verification because contradictory statements can share high semantic overlap. Strict MNLI models can also produce false-neutral classifications on slight vocabulary variations.
-   * *Design*: We employ a two-tier strategy. First, candidate chunk sentences are processed through `cross-encoder/nli-deberta-v3-small` for instant, local verification. If classified as neutral due to strict phrasing nuances, the system consults an LLM-as-a-judge via Groq to confirm semantic grounding.
-2. **Dual-Domain Balanced Reranking**:
-   * Standard vector search often returns clusters of only regulatory papers or only ML papers. GovernanceRAG classifies all papers into `legal` and `technical` domains and enforces that both perspectives are represented in the top-$K$ reranked context window.
-3. **Reciprocal Rank Fusion (RRF)**:
-   * Combines sparse BM25 scores with dense cosine similarity scores without requiring arbitrary weight tuning:
-     $$RRF\_Score(d) = \sum_{m \in M} \frac{1}{60 + r_m(d)}$$
+1. **Article-level chunking for law, not fixed windows.** A legal citation is only useful if it names the unit. Chunk boundaries follow the regulation's own structure, and each chunk's embedded text starts with its structural header, which is the cheap half of "contextual retrieval".
+2. **NLI entailment, not cosine similarity, for verification.** Contradictory sentences can sit close in embedding space. The verifier scores *(source sentence, claim)* pairs with a 3-way NLI model and only an LLM breaks ties on neutral verdicts.
+3. **RRF over weighted score fusion.** BM25 keeps exact tokens like "Article 10" and "Annex III" from being lost; RRF combines without tuning weights.
+4. **Domain quota in reranking.** Without it, a question about Article 10 returns five law chunks and no engineering guidance, or vice versa.
+5. **Manifest over code.** Adding NIST, GDPR or a tooling-docs source is a YAML entry plus a chunker, not an edit to the retriever.
 
 ---
 
-## Testing
+## Setup
 
-The project includes an automated test suite verifying ingestion, hybrid retrieval, dual-domain balancing, and NLI citation verification:
-
-```bash
-# Run all tests
-python -m pytest tests/ -v
-```
-
-**Test Coverage (11 tests):**
-* `test_api.py`: FastAPI / healthcheck endpoint tests
-* `test_ingest.py`: Citation cleaning and layout extraction
-* `test_retriever.py`: Dense search, BM25 keyword fusion, domain classification, and dual-domain balanced reranking
-* `test_verifier.py`: Citation regex parsing, atomic claim segmentation, chunk sentence splitting, and real-model NLI inference
-
----
-
-## Roadmap
-
-- [x] **Phase 1**: Core RAG Pipeline (ChromaDB, Cross-Encoder, Gradio UI, arXiv corpus ingestion)
-- [x] **Phase 2**: Hybrid Search Implementation (BM25 Sparse + Dense Vectors + RRF)
-- [x] **Phase 3**: Auditable & Verifiable Citations (NLI Entailment, Evidence Quotes & Dual-Domain Balancing)
-- [ ] **Phase 4**: Automated RAG Evaluation Suite (DeepEval / Ragas with CI/CD quality gates)
-- [ ] **Phase 5**: Production Dockerfile, Hugging Face Spaces & Automated GitHub Actions CI/CD
-
----
-
-## Setup & Running the Application
-
-### 1. Clone and Install Dependencies
 ```bash
 git clone https://github.com/ayhamo/governance-rag.git
 cd governance-rag
-
-# Activate virtual environment
-# Windows:
-.\venv\Scripts\activate
-# Mac/Linux:
-source venv/bin/activate
-
-# Install dependencies (PyTorch CPU / CUDA)
-pip install -r requirements.txt
+uv sync                      # CPU torch + dev tools. CUDA 12.8: uv sync --no-group cpu --group cu128
+echo "GROQ_API_KEY=gsk_..." > .env   # free key at console.groq.com
+uv run governance-rag fetch  # downloads the 20 PDFs (the Act's HTML is committed)
+uv run governance-rag ingest # chunks, embeds, builds BM25 (a few minutes on CPU)
+uv run governance-rag serve  # http://127.0.0.1:7860
 ```
 
-### 2. Configure API Keys
-Create a `.env` file in the project root:
-```env
-GROQ_API_KEY=gsk_your_groq_api_key_here
-```
-*(Get a free key at [console.groq.com](https://console.groq.com))*
+Other entry points: `uv run governance-rag api` (FastAPI on :8000), `uv run governance-rag ingest --rebuild` after changing chunking, `--llm-headers` to add LLM context lines to research chunks.
 
-### 3. Run the Application
-Start the Gradio web interface:
+### Tests
+
 ```bash
-python app.py
+uv run pytest -m "not slow"   # ~20 s, no model downloads
+uv run pytest -m slow         # real NLI model
 ```
 
-* The app will initialize the embedding model, cross-encoder, ChromaDB vector store, and the DeBERTa-v3 NLI citation verifier.
-* Open your browser and navigate to **`http://127.0.0.1:7860`**.
-* Ask any compliance question (e.g., *"How do we mitigate bias to comply with Article 10 of the EU AI Act?"*) to see real-time streaming, dual-domain sources, and the automated NLI Citation Audit in action!
+Covers: manifest loading; the EUR-Lex chunker on the real Act (180 recitals, 113 articles, 13 annexes, Art. 10(2)(f), Annex III(4), Annex IV items 1–9, Article 113 application dates); hybrid retrieval and RRF; per-source cap and domain quota; citation parsing and NLI aggregation; API endpoints.
+
+### Docker
+
+```bash
+docker build -t governance-rag .
+docker run -p 7860:7860 -e GROQ_API_KEY=... -v $PWD/chroma_db:/app/chroma_db governance-rag
+```
+
+The image does not contain the index yet; mount a built `chroma_db/` or run `fetch` + `ingest` inside the container.
+
+---
+
+*Not legal advice. Answers are drafts grounded in the cited text; verify with counsel.*

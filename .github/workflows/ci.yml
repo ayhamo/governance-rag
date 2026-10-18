@@ -7,30 +7,35 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  lint-and-fast-tests:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.11"
-
-      - name: Install dependencies
+          enable-cache: true
+      - name: Install (CPU torch is the default group)
+        run: uv sync --frozen
+      - name: Ruff
         run: |
-          pip install -r requirements.txt
+          uv run --no-sync ruff check .
+          uv run --no-sync ruff format --check .
+      - name: Fast tests (no model downloads)
+        run: uv run --no-sync pytest -m "not slow"
 
-      - name: Check imports
-        run: |
-          python -c "from src.config import EMBEDDING_MODEL, RERANK_MODEL, GROQ_MODEL; print('Config OK')"
-          python -c "from src.retriever import retrieve, rerank; print('Retriever OK')"
-          python -c "from src.generator import generate, generate_streaming; print('Generator OK')"
-          python -c "from src.ingest import extract_title, remove_citations, chunk_documents; print('Ingest OK')"
-
-      - name: Check app syntax
-        run: |
-          python -m py_compile app.py
-          echo "App syntax OK"
+  slow-tests:
+    runs-on: ubuntu-latest
+    needs: lint-and-fast-tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-models-${{ hashFiles('src/governance_rag/config.py') }}
+      - name: Install
+        run: uv sync --frozen
+      - name: Slow tests (real NLI model)
+        run: uv run --no-sync pytest -m slow

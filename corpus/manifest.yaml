@@ -1,0 +1,104 @@
+# Every source the index is built from. `governance-rag fetch` downloads what is
+# missing under corpus/raw/; `governance-rag ingest` reads this file to decide
+# what to chunk and how to label it. Nothing about sources is hard-coded in code.
+#
+# as_of: the date this corpus was last assembled. Printed in every answer.
+version: 1
+as_of: "2026-10-14"
+
+sources:
+  eu_ai_act:
+    enabled: true
+    domain: law
+    kind: eurlex_html
+    instrument: "Regulation (EU) 2024/1689 (EU AI Act)"
+    short: "EU AI Act"
+    celex: "32024R1689"
+    url: "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=OJ:L_202401689"
+    link_base: "https://eur-lex.europa.eu/eli/reg/2024/1689/oj/eng"
+    path: raw/eu_ai_act/eu_ai_act.html
+    version_date: "2024-07-12"   # OJ L, 12.7.2024 (original text, not consolidated)
+    entry_into_force: "2024-08-01"
+    retrieved: "2026-10-14"
+    license: "EUR-Lex reuse (Commission Decision 2011/833/EU): free reuse with attribution"
+
+  nist_ai_rmf:
+    enabled: false   # downloaded; function/category chunker not built yet (see implementation_plan.md)
+    domain: law
+    kind: pdf
+    instrument: "NIST AI Risk Management Framework 1.0 (NIST AI 100-1)"
+    short: "NIST AI RMF"
+    url: "https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.100-1.pdf"
+    path: raw/nist_ai_rmf/nist_ai_rmf.pdf
+    version_date: "2023-01-26"
+    retrieved: "2026-10-14"
+    license: "US Government work, public domain"
+
+  arxiv_papers:
+    enabled: true
+    domain: research
+    kind: arxiv_pdf_dir
+    path: raw/arxiv_papers
+    retrieved: "2026-10-14"
+    license: "Per-paper arXiv licence; PDFs are not redistributed with this repo"
+    papers:
+      - id: "2503.05758"
+        file: ADAPT_Centre_Contribution_on_Implementation_of_the_2503.05758v1.pdf
+        title: "ADAPT Centre Contribution on Implementation of the EU AI Act and Fundamental Right Protection"
+      - id: "2502.03468"
+        file: AI_Governance_in_the_Context_of_the_EU_AI_Act__A_B_2502.03468v1.pdf
+        title: "AI Governance in the Context of the EU AI Act: A Bibliometric and Literature Review Approach"
+      - id: "2510.01281"
+        file: An_Analysis_of_the_New_EU_AI_Act_and_A_Proposed_St_2510.01281v1.pdf
+        title: "An Analysis of the New EU AI Act and A Proposed Standardization Framework for Machine Learning Fairness"
+      - id: "2104.00170"
+        file: Are_Bias_Mitigation_Techniques_for_Deep_Learning_E_2104.00170v4.pdf
+        title: "Are Bias Mitigation Techniques for Deep Learning Effective?"
+      - id: "2604.09628"
+        file: Assessing_Model_Agnostic_XAI_Methods_against_EU_AI_2604.09628v2.pdf
+        title: "Assessing Model-Agnostic XAI Methods against EU AI Act Explainability Requirements"
+      - id: "2307.10458"
+        file: Complying_with_the_EU_AI_Act_2307.10458v1.pdf
+        title: "Complying with the EU AI Act"
+      - id: "2503.15528"
+        file: Complying_with_the_EU_AI_Act__Innovations_in_Expla_2503.15528v1.pdf
+        title: "Complying with the EU AI Act: Innovations in Explainable and User-Centric Hand Gesture Recognition"
+      - id: "1610.02413"
+        file: Equality_of_Opportunity_in_Supervised_Learning_1610.02413v1.pdf
+        title: "Equality of Opportunity in Supervised Learning"
+      - id: "2505.18236"
+        file: From_Bias_to_Accountability__How_the_EU_AI_Act_Con_2505.18236v1.pdf
+        title: "From Bias to Accountability: How the EU AI Act Confronts Challenges in European GeoAI Auditing"
+      - id: "2607.21608"
+        file: From_Obligation_to_Specification__A_Survey_on_Vali_2607.21608v1.pdf
+        title: "From Obligation to Specification: A Survey on Validating EU AI Act Requirements in RE"
+      - id: "2605.01091"
+        file: Governing_What_the_EU_AI_Act_Excludes__Accountabil_2605.01091v1.pdf
+        title: "Governing What the EU AI Act Excludes: Accountability for Autonomous AI Agents in Smart City Critical Infrastructure"
+      - id: "2503.05787"
+        file: Mapping_the_Regulatory_Learning_Space_for_the_EU_A_2503.05787v2.pdf
+        title: "Mapping the Regulatory Learning Space for the EU AI Act"
+      - id: "2403.16808"
+        file: Navigating_the_EU_AI_Act__A_Methodological_Approac_2403.16808v2.pdf
+        title: "Navigating the EU AI Act: A Methodological Approach to Compliance for Safety-critical Products"
+      - id: "2608.16526"
+        file: Operationalizing_the_EU_AI_Act_in_Agile_Software_D_2608.16526v1.pdf
+        title: "Operationalizing the EU AI Act in Agile Software Development: A Guideline-Based Approach"
+      - id: "2608.08564"
+        file: Qualifying_and_Quantifying_Risk_Under_the_EU_AI_Ac_2608.08564v2.pdf
+        title: "Qualifying and Quantifying Risk Under the EU AI Act"
+      - id: "2506.01931"
+        file: Red_Teaming_AI_Policy__A_Taxonomy_of_Avoision_and__2506.01931v1.pdf
+        title: "Red Teaming AI Policy: A Taxonomy of Avoision and the EU AI Act"
+      - id: "2306.00292"
+        file: Sustainable_AI_Regulation_2306.00292v4.pdf
+        title: "Sustainable AI Regulation"
+      - id: "2605.01611"
+        file: The_Case_for_ESM3_as_a_General_Purpose_AI_Model_wi_2605.01611v1.pdf
+        title: "The Case for ESM3 as a General-Purpose AI Model with Systemic Risk Under the EU AI Act"
+      - id: "2603.22920"
+        file: The_EU_AI_Act_and_the_Rights_based_Approach_to_Tec_2603.22920v1.pdf
+        title: "The EU AI Act and the Rights-based Approach to Technological Governance"
+      - id: "2504.20075"
+        file: The_EU_AI_Act_in_Development_Practice__A_Pro_justi_2504.20075v1.pdf
+        title: "The EU AI Act in Development Practice: A Pro-justice Approach"

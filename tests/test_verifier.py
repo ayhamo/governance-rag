@@ -1,16 +1,19 @@
 import pytest
-from src.verifier import (
+
+from governance_rag.verifier import (
+    CitationVerifier,
     extract_citations_from_text,
     extract_claims_with_citations,
     segment_chunk_sentences,
-    CitationVerifier
 )
+
 
 def test_extract_citations_from_text():
     assert extract_citations_from_text("Statement [Source 1].") == [1]
     assert extract_citations_from_text("Statement [Source 1, 3].") == [1, 3]
     assert extract_citations_from_text("Statement [Source 2][Source 4].") == [2, 4]
     assert extract_citations_from_text("No citation.") == []
+
 
 def test_extract_claims_with_citations():
     markdown = """
@@ -24,6 +27,7 @@ def test_extract_claims_with_citations():
     assert "High-risk AI systems" in claims[0]["claim"]
     assert claims[1]["citations"] == [2]
     assert "Equalized Odds" in claims[1]["claim"]
+
 
 def test_extract_claims_table_and_abbreviations():
     markdown = """
@@ -44,6 +48,7 @@ def test_extract_claims_table_and_abbreviations():
     assert "e.g. validation metrics" in claims[1]["claim"]
     assert "Sec. 4" in claims[1]["claim"]
 
+
 def test_segment_chunk_sentences():
     chunk = """
     ### Article 10 Requirements
@@ -56,6 +61,7 @@ def test_segment_chunk_sentences():
     assert len(sentences) >= 2
     assert any("data governance" in s for s in sentences)
     assert any("free of bias" in s for s in sentences)
+
 
 def test_verifier_mock():
     # Test verifier with a mock model to ensure logic and aggregation are intact
@@ -79,13 +85,13 @@ def test_verifier_mock():
         {
             "id": "c1",
             "title": "EU AI Act Employment",
-            "text": "Under Annex III, AI systems deployed in recruitment and hiring are considered high-risk systems."
+            "text": "Under Annex III, AI systems deployed in recruitment and hiring are considered high-risk systems.",
         },
         {
             "id": "c2",
             "title": "Mitigation Paper",
-            "text": "Equalized Odds is a post-processing algorithm that equalizes true positive rates."
-        }
+            "text": "Equalized Odds is a post-processing algorithm that equalizes true positive rates.",
+        },
     ]
 
     answer = "Recruitment AI tools are classified as high-risk systems [Source 1]."
@@ -98,6 +104,8 @@ def test_verifier_mock():
     assert audit["source_summary"][1]["status"] == "verified"
     assert audit["source_summary"][2]["status"] == "unreferenced"
 
+
+@pytest.mark.slow
 def test_verifier_real_model():
     verifier = CitationVerifier()
     if verifier.model is None:
@@ -107,7 +115,7 @@ def test_verifier_real_model():
         {
             "id": "c1",
             "title": "EU AI Act Employment",
-            "text": "Under Annex III of the EU AI Act, AI systems used in recruitment and CV screening are classified as high-risk systems."
+            "text": "Under Annex III of the EU AI Act, AI systems used in recruitment and CV screening are classified as high-risk systems.",
         }
     ]
 
@@ -119,3 +127,14 @@ def test_verifier_real_model():
     assert audit["source_summary"][1]["status"] == "verified"
     assert audit["source_summary"][1]["confidence"] >= 0.50
 
+
+def test_citation_label_line_attaches_to_previous_claim():
+    md = """- **Requirement**: Training data must be examined for possible biases.
+- **Citation**: [Source 1].
+- Equalized Odds balances error rates across groups [Source 2]."""
+    claims = extract_claims_with_citations(md)
+    assert len(claims) == 2
+    assert claims[0]["citations"] == [1]
+    assert "examined for possible biases" in claims[0]["claim"]
+    assert "Citation" not in claims[0]["claim"]
+    assert claims[1]["citations"] == [2]

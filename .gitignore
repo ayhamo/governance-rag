@@ -1,0 +1,31 @@
+# ── project ──────────────────────────────────────────────────
+.env
+chroma_db/
+corpus/raw/**/*.pdf
+corpus/cache/
+graphify-out/
+.agents/
+.claude/
+
+# ── python ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+tempCodeRunnerFile.py
+
+# ── OS / editors ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# private working notes
+implementation_plan.md

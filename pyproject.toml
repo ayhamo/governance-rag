@@ -1,0 +1,76 @@
+[project]
+name = "governance-rag"
+version = "0.2.0"
+description = "RAG over the EU AI Act and ML-fairness literature with NLI-verified citations."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+dependencies = [
+    "sentence-transformers>=5.0",
+    "chromadb>=1.0",
+    "rank-bm25>=0.2.2",
+    "langchain-text-splitters>=0.3",
+    "pymupdf>=1.25",
+    "pymupdf4llm>=0.0.20",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+    "pyyaml>=6.0",
+    "httpx>=0.27",
+    "groq>=0.20",
+    "gradio>=5.0",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "python-dotenv>=1.0",
+    "tqdm>=4.66",
+]
+
+[project.scripts]
+governance-rag = "governance_rag.__main__:main"
+
+# torch comes from a backend-specific index. `uv sync` installs the CPU build
+# (default group); for CUDA 12.8 run `uv sync --no-group cpu --group cu128`.
+[dependency-groups]
+cpu = ["torch>=2.5"]
+cu128 = ["torch>=2.5"]
+dev = ["pytest>=8.0", "ruff>=0.8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/governance_rag"]
+
+[tool.uv]
+default-groups = ["cpu", "dev"]
+conflicts = [[{ group = "cpu" }, { group = "cu128" }]]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", group = "cpu" },
+    { index = "pytorch-cu128", group = "cu128" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["graphify-out", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["slow: downloads or runs a real model"]
+addopts = "-ra"
